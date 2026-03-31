@@ -1,0 +1,27 @@
+[project]
+name = "lock-pomodoro"
+version = "0.1.0"
+description = "A minimal macOS pomodoro timer that can lock the screen when work sessions end."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pyobjc-framework-Cocoa>=11.0,<12.0",
+]
+
+[project.optional-dependencies]
+build = [
+  "pyinstaller>=6.15,<7.0",
+]
+
+[project.scripts]
+lock-pomodoro = "lock_pomodoro.app:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
