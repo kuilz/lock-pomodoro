@@ -50,7 +50,6 @@ class LockPomodoroApp(NSObject):
 
         self.engine: PomodoroEngine | None = None
         self.timer = None
-        self.last_tick_at: float | None = None
         self.window_visible = False
 
         self.work_input = None
@@ -133,8 +132,8 @@ class LockPomodoroApp(NSObject):
             self.engine = PomodoroEngine(config)
             self._update_display(self.engine.snapshot())
 
-        self.engine.start()
-        self.last_tick_at = time.monotonic()
+        snapshot = self.engine.start(time.monotonic())
+        self._update_display(snapshot)
         self._set_inputs_enabled(False)
         self._set_status("Running")
 
@@ -142,14 +141,12 @@ class LockPomodoroApp(NSObject):
     def pause(self) -> None:
         if self.engine is None:
             return
-        self.engine.pause()
-        self.last_tick_at = None
+        snapshot = self.engine.pause(time.monotonic())
         self._set_status("Paused")
-        self._update_display(self.engine.snapshot())
+        self._update_display(snapshot)
 
     @objc.python_method
     def reset(self) -> None:
-        self.last_tick_at = None
         if self.engine is None:
             try:
                 config = self._read_config()
@@ -158,7 +155,7 @@ class LockPomodoroApp(NSObject):
             self._save_config(config)
             snapshot = PomodoroEngine(config).snapshot()
         else:
-            snapshot = self.engine.reset()
+            snapshot = self.engine.reset(time.monotonic())
             self.engine = None
         self._set_inputs_enabled(True)
         self._set_status("Ready")
@@ -195,24 +192,18 @@ class LockPomodoroApp(NSObject):
         NSApp().terminate_(None)
 
     def handleTimer_(self, _timer) -> None:
-        if self.engine is None or not self.engine.snapshot().is_running:
-            return
-
         now = time.monotonic()
-        if self.last_tick_at is None:
-            self.last_tick_at = now
+        if self.engine is None or not self.engine.is_running:
             return
 
-        elapsed_seconds = int(now - self.last_tick_at)
-        if elapsed_seconds < 1:
-            return
-
-        self.last_tick_at += elapsed_seconds
-        result = self.engine.tick(elapsed_seconds)
+        result = self.engine.tick(now)
         self._update_display(result.snapshot)
-        if result.should_lock:
-            lock_result = lock_screen()
-            self._set_status(lock_result.message)
+        if result.work_completion_count > 0:
+            lock_result = None
+            for _ in range(result.work_completion_count):
+                lock_result = lock_screen()
+            if lock_result is not None:
+                self._set_status(lock_result.message)
         elif result.phase_changed:
             self._set_status(f"{result.snapshot.phase_label} started")
 
